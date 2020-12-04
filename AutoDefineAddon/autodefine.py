@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # AutoDefine Anki Add-on
 # Auto-defines words, optionally adding pronunciation and images.
 #
@@ -21,7 +23,10 @@ from http.client import RemoteDisconnected
 from urllib.error import URLError
 from xml.etree import ElementTree as ET
 
-from .libs import webbrowser
+import sys
+sys.path.append("/home/artem/workspace/AutoDefine/AutoDefineAddon/libs")
+
+import webbrowser
 
 # --------------------------------- SETTINGS ---------------------------------
 
@@ -148,7 +153,7 @@ def _focus_zero_field(editor):
         editor.web.eval("focusField(%d);" % 0)
 
 
-def get_preferred_valid_entries(editor, word):
+def get_preferred_valid_entries(word):
     collegiate_url = "http://www.dictionaryapi.com/api/v1/references/collegiate/xml/" + \
                      urllib.parse.quote_plus(word) + "?key=" + MERRIAM_WEBSTER_API_KEY
     medical_url = "https://www.dictionaryapi.com/api/references/medical/v2/xml/" + \
@@ -174,7 +179,7 @@ def get_preferred_valid_entries(editor, word):
         potential = " Potential matches: " + ", ".join(potential_unified)
         tooltip("No entry found in Merriam-Webster dictionary for word '%s'.%s" %
                 (word, potential if entries.potential else ""))
-        _focus_zero_field(editor)
+
     return entries.valid
 
 
@@ -221,6 +226,8 @@ def get_entries_from_api(word, url):
         return etree.findall("entry")
     except URLError:
         return []
+    except ValueError:
+        return []
     except (ET.ParseError, RemoteDisconnected):
         showInfo("Couldn't parse API response for word '%s'. "
                  "Please submit an issue to the AutoDefine GitHub (a web browser window will open)." % word)
@@ -243,77 +250,54 @@ def _get_word(editor):
     word = clean_html(word).strip()
     return word
 
+class Card():
+    entries = []
+    fields = ["", "", "", ""]
+    def parse(self, entries) -> list:
+        pass
 
-def _get_definition(editor,
-                    force_pronounce=False,
-                    force_definition=False,
-                    force_phonetic_transcription=False):
-    validate_settings()
-    word = _get_word(editor)
-    if word == "":
-        tooltip("AutoDefine: No text found in note fields.")
-        return
-    valid_entries = get_preferred_valid_entries(editor, word)
+    def getField(self, id):
+        # FIXME: out of range
+        return self.fields[id]
 
-    insert_queue = {}
-
-    # Add Vocal Pronunciation
-    if (not force_definition and not force_phonetic_transcription and PRONUNCIATION_FIELD > -1) or force_pronounce:
-        # Parse all unique pronunciations, and convert them to URLs as per http://goo.gl/nL0vte
-        all_sounds = []
-        for entry in valid_entries:
-            for wav in entry.findall("sound/wav"):
-                raw_wav = wav.text
-                # API-specific URL conversions
-                if raw_wav[:3] == "bix":
-                    mid_url = "bix"
-                elif raw_wav[:2] == "gg":
-                    mid_url = "gg"
-                elif raw_wav[:1].isdigit():
-                    mid_url = "number"
+    def serialize(self, editor):
+        if editor.note:
+            i = 0
+            for field in self.fields:
+                if field.find("wav") != -1:
+                    editor.note.fields[i] = editor.urlToLink(field)
                 else:
-                    mid_url = raw_wav[:1]
-                wav_url = "http://media.merriam-webster.com/soundc11/" + mid_url + "/" + raw_wav
+                    editor.note.fields[i] = field
+                editor.loadNote()
+                i += 1
 
-                all_sounds.append(editor.urlToLink(wav_url).strip())
+class CardBuilder:
+    _card = Card()
+    def __init__(self, word):
+        self._card.fields[0] = word
 
-        # We want to make this a non-duplicate list, so that we only get unique sound files.
-        all_sounds = list(dict.fromkeys(all_sounds))
+    def addDefinition(self):
+        self._card.fields[DEFINITION_FIELD] = ""
 
-        final_pronounce_index = PRONUNCIATION_FIELD
-        fields = mw.col.models.fieldNames(editor.note.model())
-        for field in fields:
-            if '🔊' in field:
-                final_pronounce_index = fields.index(field)
-                break
+    def addTranscription(self):
+        self._card.fields[PHONETIC_TRANSCRIPTION_FIELD] = ""
 
-        to_print = ''.join(all_sounds)
+    def addPronunciation(self):
+        self._card.fields[PRONUNCIATION_FIELD] = ""
 
-        _add_to_insert_queue(insert_queue, to_print, final_pronounce_index)
+    def getCard(self) -> Card:
+        return self._card
 
-    # Add Phonetic Transcription
-    if (not force_definition and not force_pronounce and PHONETIC_TRANSCRIPTION_FIELD > -1) or \
-            force_phonetic_transcription:
+class CollegiateCardBuilder(CardBuilder):
+    def __init__(self, word):
+        super().__init__(word)
+        self._card.entries = get_preferred_valid_entries(word)
 
-        # extract phonetic transcriptions for each entry and label them by part of speech
-        all_transcriptions = []
-        for entry in valid_entries:
-            if entry.find("pr") is not None:
-                phonetic_transcription = entry.find("pr").text
-
-                part_of_speech = entry.find("fl").text
-                part_of_speech = _abbreviate_part_of_speech(part_of_speech)
-
-                row = f'<b>{part_of_speech}</b> \\{phonetic_transcription}\\'
-                all_transcriptions.append(row)
-
-        to_print = "<br>".join(all_transcriptions)
-
-        _add_to_insert_queue(insert_queue, to_print, PHONETIC_TRANSCRIPTION_FIELD)
-
-    # Add Definition
-    definition_array = []
-    if (not force_pronounce and not force_phonetic_transcription and DEFINITION_FIELD > -1) or force_definition:
+    def addDefinition(self):
+        valid_entries = self._card.entries
+        insert_queue = {}
+        # Add Definition
+        definition_array = []
         # Extract the type of word this is
         for entry in valid_entries:
             this_def = entry.find("def")
@@ -386,26 +370,102 @@ def _get_definition(editor,
                 last_functional_label = definition.tail
                 to_return += to_print
 
-        # final cleanup of <sx> tag bs
-        to_return = to_return.replace(".</b> ; ", ".</b> ")  # <sx> as first definition after "n. " or "v. "
-        to_return = to_return.replace("\n; ", "\n")  # <sx> as first definition after newline
-        _add_to_insert_queue(insert_queue, to_return, DEFINITION_FIELD)
+            # final cleanup of <sx> tag bs
+            to_return = to_return.replace(".</b> ; ", ".</b> ")  # <sx> as first definition after "n. " or "v. "
+            to_return = to_return.replace("\n; ", "\n")  # <sx> as first definition after newline
+            self._card.fields[DEFINITION_FIELD] = to_return
+
+    def addTranscription(self):
+        valid_entries = self._card.entries
+        # extract phonetic transcriptions for each entry and label them by part of speech
+        all_transcriptions = []
+        for entry in valid_entries:
+            if entry.find("pr") is not None:
+                phonetic_transcription = entry.find("pr").text
+
+                part_of_speech = entry.find("fl").text
+                part_of_speech = _abbreviate_part_of_speech(part_of_speech)
+
+                row = f'<b>{part_of_speech}</b> \\{phonetic_transcription}\\'
+                all_transcriptions.append(row)
+
+        to_print = "<br>".join(all_transcriptions)
+
+        self._card.fields[PHONETIC_TRANSCRIPTION_FIELD] = to_print
+
+    def addPronunciation(self):
+        valid_entries = self._card.entries
+        # Parse all unique pronunciations, and convert them to URLs as per http://goo.gl/nL0vte
+        all_sounds = []
+        for entry in valid_entries:
+            for wav in entry.findall("sound/wav"):
+                raw_wav = wav.text
+                # API-specific URL conversions
+                if raw_wav[:3] == "bix":
+                    mid_url = "bix"
+                elif raw_wav[:2] == "gg":
+                    mid_url = "gg"
+                elif raw_wav[:1].isdigit():
+                    mid_url = "number"
+                else:
+                    mid_url = raw_wav[:1]
+                wav_url = "http://media.merriam-webster.com/soundc11/" + mid_url + "/" + raw_wav
+                # FIXME: self.editor.urlToLink(
+                all_sounds.append(wav_url.strip())
+
+        # We want to make this a non-duplicate list, so that we only get unique sound files.
+        all_sounds = list(dict.fromkeys(all_sounds))
+        # FIXME: does not look like a right place
+        final_pronounce_index = PRONUNCIATION_FIELD
+        if mw and False:
+            fields = mw.col.models.fieldNames(editor.note.model())
+            for field in fields:
+                if '🔊' in field:
+                    final_pronounce_index = fields.index(field)
+                    break
+
+        to_print = ''.join(all_sounds)
+
+        self._card.fields[PRONUNCIATION_FIELD] = to_print
+
+
+def _get_definition(editor,
+                    force_pronounce=False,
+                    force_definition=False,
+                    force_phonetic_transcription=False):
+    # FIXME: comment to work on test
+    #validate_settings()
+    word = _get_word(editor)
+    if word == "":
+        tooltip("AutoDefine: No text found in note fields.")
+        return
+
+    insert_queue = {}
+
+    cardBuilder = None
+    if PREFERRED_DICTIONARY == "COLLEGIATE":
+        cardBuilder = CollegiateCardBuilder(word)
+    # Add Vocal Pronunciation
+    if (not force_definition and not force_phonetic_transcription and PRONUNCIATION_FIELD > -1) or force_pronounce:
+        cardBuilder.addPronunciation()
+
+    # Add Phonetic Transcription
+    if (not force_definition and not force_pronounce and PHONETIC_TRANSCRIPTION_FIELD > -1) or \
+            force_phonetic_transcription:
+        cardBuilder.addTranscription()
+
+
+    # Add Definition
+    if (not force_pronounce and not force_phonetic_transcription and DEFINITION_FIELD > -1) or force_definition:
+        cardBuilder.addDefinition()
 
     # Insert each queue into the considered field
-    for field_index in insert_queue.keys():
-        insert_into_field(editor, insert_queue[field_index], field_index)
-
+    card = cardBuilder.getCard()
+    card.serialize(editor)
     if OPEN_IMAGES_IN_BROWSER:
         webbrowser.open("https://www.google.com/search?q= " + word + "&safe=off&tbm=isch&tbs=isz:lt,islt:xga", 0, False)
 
     _focus_zero_field(editor)
-
-
-def _add_to_insert_queue(insert_queue, to_print, field_index):
-    if field_index not in insert_queue.keys():
-        insert_queue[field_index] = to_print
-    else:
-        insert_queue[field_index] += "<br>" + to_print
 
 
 def _abbreviate_part_of_speech(part_of_speech):
@@ -413,19 +473,6 @@ def _abbreviate_part_of_speech(part_of_speech):
         part_of_speech = PART_OF_SPEECH_ABBREVIATION[part_of_speech]
 
     return part_of_speech
-
-
-def insert_into_field(editor, text, field_id, overwrite=False):
-    if len(editor.note.fields) <= field_id:
-        tooltip("AutoDefine: Tried to insert '%s' into user-configured field number %d (0-indexed), but note type only "
-                "has %d fields. Use a different note type with %d or more fields, or change the index in the "
-                "Add-on configuration." % (text, field_id, len(editor.note.fields), field_id + 1), period=10000)
-        return
-    if overwrite:
-        editor.note.fields[field_id] = text
-    else:
-        editor.note.fields[field_id] += text
-    editor.loadNote()
 
 
 # via https://stackoverflow.com/a/12982689
@@ -482,7 +529,7 @@ def setup_buttons(buttons, editor):
 
 
 addHook("setupEditorButtons", setup_buttons)
-
+'''
 if getattr(mw.addonManager, "getConfig", None):
     config = mw.addonManager.getConfig(__name__)
     if '1 required' in config and 'MERRIAM_WEBSTER_API_KEY' in config['1 required']:
@@ -520,3 +567,4 @@ if getattr(mw.addonManager, "getConfig", None):
             PRONOUNCE_ONLY_SHORTCUT = shortcuts['3 PRONOUNCE_ONLY_SHORTCUT']
         if '4 PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT' in shortcuts:
             PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT = shortcuts['4 PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT']
+'''
