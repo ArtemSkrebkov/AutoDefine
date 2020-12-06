@@ -84,8 +84,8 @@ def get_definition_force_phonetic_transcription(editor):
 def validate_settings():
     # ideally, we wouldn't have to force people to individually register, but the API limit is just 1000 calls/day.
 
-    if config.PREFERRED_DICTIONARY != "COLLEGIATE" and config.PREFERRED_DICTIONARY != "MEDICAL":
-        message = "Setting PREFERRED_DICTIONARY must be set to either COLLEGIATE or MEDICAL. Current setting: '%s'" \
+    if not config.PREFERRED_DICTIONARY in ["COLLEGIATE", "MEDICAL", "SPANISH"]:
+        message = "Setting PREFERRED_DICTIONARY must be set to COLLEGIATE, MEDICAL or SPANISH. Current setting: '%s'" \
                   % config.PREFERRED_DICTIONARY
         showInfo(message)
         return
@@ -145,6 +145,8 @@ def _get_definition(editor,
     cardBuilder = None
     if config.PREFERRED_DICTIONARY == "COLLEGIATE" or config.PREFERRED_DICTIONARY == "MEDICAL":
         cardBuilder = cardbuilder.CollegiateCardBuilder(word)
+    elif config.PREFERRED_DICTIONARY == "SPANISH":
+        cardBuilder = cardbuilder.SpanishCardBuilder(word)
     # Add Vocal Pronunciation
     if (not force_definition and not force_phonetic_transcription and PRONUNCIATION_FIELD > -1) or force_pronounce:
         cardBuilder.addPronunciation()
@@ -159,15 +161,12 @@ def _get_definition(editor,
     if (not force_pronounce and not force_phonetic_transcription and DEFINITION_FIELD > -1) or force_definition:
         cardBuilder.addDefinition()
 
-    # Insert each queue into the considered field
     card = cardBuilder.getCard()
     card.serialize(editor)
     if config.OPEN_IMAGES_IN_BROWSER:
         webbrowser.open("https://www.google.com/search?q= " + word + "&safe=off&tbm=isch&tbs=isz:lt,islt:xga", 0, False)
 
     _focus_zero_field(editor)
-
-
 
 
 # via https://stackoverflow.com/a/12982689

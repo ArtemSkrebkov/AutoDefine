@@ -22,6 +22,7 @@ from aqt.utils import showInfo, tooltip
 from http.client import RemoteDisconnected
 from urllib.error import URLError
 from xml.etree import ElementTree as ET
+import json
 
 import sys
 sys.path.append("/home/artem/workspace/AutoDefine/AutoDefineAddon/libs")
@@ -108,8 +109,12 @@ def get_entries_from_api(word, url):
             return []
         if "Results not found" in returned.decode("UTF-8"):
             return []
-        etree = ET.fromstring(returned)
-        return etree.findall("entry")
+        if url.find("xml") != -1:
+            etree = ET.fromstring(returned)
+            return etree.findall("entry")
+        elif url.find("json") != -1:
+            content = json.loads(returned)
+            return content
     except URLError:
         return []
     except ValueError:
@@ -295,3 +300,43 @@ class CollegiateCardBuilder(CardBuilder):
         to_print = ''.join(all_sounds)
 
         self._card.fields[config.PRONUNCIATION_FIELD] = to_print
+
+class SpanishCardBuilder(CardBuilder):
+    def __init__(self, word):
+        super().__init__(word)
+        url = "https://dictionaryapi.com/api/v3/references/spanish/json/" + word + "?key=" + config.MERRIAM_WEBSTER_SPANISH_API_KEY
+        entries = get_entries_from_api(word, url)
+        if entries:
+            self._card.entries = entries[0]
+        else:
+            self._card.entries = []
+
+    def addDefinition(self):
+        entries = self._card.entries
+        if entries:
+            definitions = []
+            sseq_list = entries["def"][0]["sseq"]
+            for sseq in sseq_list:
+                dt = sseq[0][1]["dt"]
+                for elem in dt:
+                    if elem[0] == "text":
+                        definition = elem[1].replace("{bc}", "")     \
+                                            .replace("{a_link|", "") \
+                                            .replace("}", "")        \
+                                            .replace("{sx|", "")     \
+                                            .replace("|", "")     \
+                                            .strip()
+                        definitions.append(definition)
+            text = ""
+            for definition in definitions:
+                text += definition + '\n<br>'
+            self._card.fields[config.DEFINITION_FIELD] = text
+
+
+    def addPronunciation(self):
+        entries = self._card.entries
+        if entries:
+            pronunciations = []
+            audio = entries["hwi"]["prs"][0]["sound"]["audio"]
+            if audio:
+                self._card.fields[config.PRONUNCIATION_FIELD] = "https://media.merriam-webster.com/audio/prons/es/me/wav/" + audio[0] + "/" + audio + ".wav"
