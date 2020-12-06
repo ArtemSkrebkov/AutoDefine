@@ -23,12 +23,9 @@ from http.client import RemoteDisconnected
 from urllib.error import URLError
 from xml.etree import ElementTree as ET
 
-import sys
-sys.path.append("/home/artem/workspace/AutoDefine/AutoDefineAddon/libs")
-
-import config
-import webbrowser
-import cardbuilder
+from .libs import settings
+from .libs import webbrowser
+from .libs import cardbuilder
 # --------------------------------- SETTINGS ---------------------------------
 
 
@@ -84,20 +81,20 @@ def get_definition_force_phonetic_transcription(editor):
 def validate_settings():
     # ideally, we wouldn't have to force people to individually register, but the API limit is just 1000 calls/day.
 
-    if not config.PREFERRED_DICTIONARY in ["COLLEGIATE", "MEDICAL", "SPANISH"]:
+    if not settings.PREFERRED_DICTIONARY in ["COLLEGIATE", "MEDICAL", "SPANISH"]:
         message = "Setting PREFERRED_DICTIONARY must be set to COLLEGIATE, MEDICAL or SPANISH. Current setting: '%s'" \
-                  % config.PREFERRED_DICTIONARY
+                  % settings.PREFERRED_DICTIONARY
         showInfo(message)
         return
 
-    if config.PREFERRED_DICTIONARY == "MEDICAL" and config.MERRIAM_WEBSTER_MEDICAL_API_KEY == "YOUR_KEY_HERE":
+    if settings.PREFERRED_DICTIONARY == "MEDICAL" and settings.MERRIAM_WEBSTER_MEDICAL_API_KEY == "YOUR_KEY_HERE":
         message = "The preferred dictionary was set to MEDICAL, but no API key was provided.\n" \
                   "Please register for one at www.dictionaryapi.com."
         showInfo(message)
         webbrowser.open("https://www.dictionaryapi.com/", 0, False)
         return
 
-    if config.MERRIAM_WEBSTER_API_KEY == "YOUR_KEY_HERE":
+    if settings.MERRIAM_WEBSTER_API_KEY == "YOUR_KEY_HERE":
         message = "AutoDefine requires use of Merriam-Webster's Collegiate Dictionary with Audio API. " \
                   "To get functionality working:\n" \
                   "1. Go to www.dictionaryapi.com and sign up for an account, requesting access to " \
@@ -143,27 +140,27 @@ def _get_definition(editor,
     insert_queue = {}
 
     cardBuilder = None
-    if config.PREFERRED_DICTIONARY == "COLLEGIATE" or config.PREFERRED_DICTIONARY == "MEDICAL":
+    if settings.PREFERRED_DICTIONARY == "COLLEGIATE" or settings.PREFERRED_DICTIONARY == "MEDICAL":
         cardBuilder = cardbuilder.CollegiateCardBuilder(word)
-    elif config.PREFERRED_DICTIONARY == "SPANISH":
+    elif settings.PREFERRED_DICTIONARY == "SPANISH":
         cardBuilder = cardbuilder.SpanishCardBuilder(word)
     # Add Vocal Pronunciation
-    if (not force_definition and not force_phonetic_transcription and PRONUNCIATION_FIELD > -1) or force_pronounce:
+    if (not force_definition and not force_phonetic_transcription and settings.PRONUNCIATION_FIELD > -1) or force_pronounce:
         cardBuilder.addPronunciation()
 
     # Add Phonetic Transcription
-    if (not force_definition and not force_pronounce and PHONETIC_TRANSCRIPTION_FIELD > -1) or \
+    if (not force_definition and not force_pronounce and settings.PHONETIC_TRANSCRIPTION_FIELD > -1) or \
             force_phonetic_transcription:
         cardBuilder.addTranscription()
 
 
     # Add Definition
-    if (not force_pronounce and not force_phonetic_transcription and DEFINITION_FIELD > -1) or force_definition:
+    if (not force_pronounce and not force_phonetic_transcription and settings.DEFINITION_FIELD > -1) or force_definition:
         cardBuilder.addDefinition()
 
     card = cardBuilder.getCard()
     card.serialize(editor)
-    if config.OPEN_IMAGES_IN_BROWSER:
+    if settings.OPEN_IMAGES_IN_BROWSER:
         webbrowser.open("https://www.google.com/search?q= " + word + "&safe=off&tbm=isch&tbs=isz:lt,islt:xga", 0, False)
 
     _focus_zero_field(editor)
@@ -179,55 +176,53 @@ def setup_buttons(buttons, editor):
                                    cmd="AD",
                                    func=get_definition,
                                    tip="AutoDefine Word (%s)" %
-                                       ("no shortcut" if PRIMARY_SHORTCUT == "" else PRIMARY_SHORTCUT),
+                                       ("no shortcut" if settings.PRIMARY_SHORTCUT == "" else settings.PRIMARY_SHORTCUT),
                                    toggleable=False,
                                    label="",
-                                   keys=PRIMARY_SHORTCUT,
+                                   keys=settings.PRIMARY_SHORTCUT,
                                    disables=False)
     define_button = editor.addButton(icon="",
                                      cmd="D",
                                      func=get_definition_force_definition,
                                      tip="AutoDefine: Definition only (%s)" %
-                                         ("no shortcut" if DEFINE_ONLY_SHORTCUT == "" else DEFINE_ONLY_SHORTCUT),
+                                         ("no shortcut" if settings.DEFINE_ONLY_SHORTCUT == "" else settings.DEFINE_ONLY_SHORTCUT),
                                      toggleable=False,
                                      label="",
-                                     keys=DEFINE_ONLY_SHORTCUT,
+                                     keys=settings.DEFINE_ONLY_SHORTCUT,
                                      disables=False)
     pronounce_button = editor.addButton(icon="",
                                         cmd="P",
                                         func=get_definition_force_pronunciation,
                                         tip="AutoDefine: Pronunciation only (%s)" % ("no shortcut"
-                                                                                     if PRONOUNCE_ONLY_SHORTCUT == ""
-                                                                                     else PRONOUNCE_ONLY_SHORTCUT),
+                                                                                     if settings.PRONOUNCE_ONLY_SHORTCUT == ""
+                                                                                     else settings.PRONOUNCE_ONLY_SHORTCUT),
                                         toggleable=False,
                                         label="",
-                                        keys=PRONOUNCE_ONLY_SHORTCUT,
+                                        keys=settings.PRONOUNCE_ONLY_SHORTCUT,
                                         disables=False)
     phonetic_transcription_button = editor.addButton(icon="",
                                                      cmd="ə",
                                                      func=get_definition_force_phonetic_transcription,
                                                      tip="AutoDefine: Phonetic Transcription only (%s)" %
                                                          ("no shortcut"
-                                                          if PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT == ""
-                                                          else PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT),
+                                                          if settings.PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT == ""
+                                                          else settings.PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT),
                                                      toggleable=False,
                                                      label="",
-                                                     keys=PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT,
+                                                     keys=settings.PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT,
                                                      disables=False)
     buttons.append(both_button)
-    if DEDICATED_INDIVIDUAL_BUTTONS:
+    if settings.DEDICATED_INDIVIDUAL_BUTTONS:
         buttons.append(define_button)
         buttons.append(pronounce_button)
         buttons.append(phonetic_transcription_button)
     return buttons
 
-
 addHook("setupEditorButtons", setup_buttons)
-'''
 if getattr(mw.addonManager, "getConfig", None):
     config = mw.addonManager.getConfig(__name__)
     if '1 required' in config and 'MERRIAM_WEBSTER_API_KEY' in config['1 required']:
-        MERRIAM_WEBSTER_API_KEY = config['1 required']['MERRIAM_WEBSTER_API_KEY']
+        settings.MERRIAM_WEBSTER_API_KEY = config['1 required']['MERRIAM_WEBSTER_API_KEY']
     else:
         showInfo("AutoDefine: The schema of the configuration has changed in a backwards-incompatible way.\n"
                  "Please remove and re-download the AutoDefine Add-on.")
@@ -235,30 +230,29 @@ if getattr(mw.addonManager, "getConfig", None):
     if '2 extra' in config:
         extra = config['2 extra']
         if 'DEDICATED_INDIVIDUAL_BUTTONS' in extra:
-            DEDICATED_INDIVIDUAL_BUTTONS = extra['DEDICATED_INDIVIDUAL_BUTTONS']
+            settings.DEDICATED_INDIVIDUAL_BUTTONS = extra['DEDICATED_INDIVIDUAL_BUTTONS']
         if 'DEFINITION_FIELD' in extra:
-            DEFINITION_FIELD = extra['DEFINITION_FIELD']
+            settings.DEFINITION_FIELD = extra['DEFINITION_FIELD']
         if 'IGNORE_ARCHAIC' in extra:
-            IGNORE_ARCHAIC = extra['IGNORE_ARCHAIC']
+            settings.IGNORE_ARCHAIC = extra['IGNORE_ARCHAIC']
         if 'MERRIAM_WEBSTER_MEDICAL_API_KEY' in extra:
-            MERRIAM_WEBSTER_MEDICAL_API_KEY = extra['MERRIAM_WEBSTER_MEDICAL_API_KEY']
+            settings.MERRIAM_WEBSTER_MEDICAL_API_KEY = extra['MERRIAM_WEBSTER_MEDICAL_API_KEY']
         if 'OPEN_IMAGES_IN_BROWSER' in extra:
-            OPEN_IMAGES_IN_BROWSER = extra['OPEN_IMAGES_IN_BROWSER']
+            settings.OPEN_IMAGES_IN_BROWSER = extra['OPEN_IMAGES_IN_BROWSER']
         if 'PREFERRED_DICTIONARY' in extra:
-            PREFERRED_DICTIONARY = extra['PREFERRED_DICTIONARY']
+            settings.PREFERRED_DICTIONARY = extra['PREFERRED_DICTIONARY']
         if 'PRONUNCIATION_FIELD' in extra:
-            PRONUNCIATION_FIELD = extra['PRONUNCIATION_FIELD']
+            settings.PRONUNCIATION_FIELD = extra['PRONUNCIATION_FIELD']
         if 'PHONETIC_TRANSCRIPTION_FIELD' in extra:
-            PHONETIC_TRANSCRIPTION_FIELD = extra['PHONETIC_TRANSCRIPTION_FIELD']
+            settings.PHONETIC_TRANSCRIPTION_FIELD = extra['PHONETIC_TRANSCRIPTION_FIELD']
 
     if '3 shortcuts' in config:
         shortcuts = config['3 shortcuts']
         if '1 PRIMARY_SHORTCUT' in shortcuts:
-            PRIMARY_SHORTCUT = shortcuts['1 PRIMARY_SHORTCUT']
+            settings.PRIMARY_SHORTCUT = shortcuts['1 PRIMARY_SHORTCUT']
         if '2 DEFINE_ONLY_SHORTCUT' in shortcuts:
-            DEFINE_ONLY_SHORTCUT = shortcuts['2 DEFINE_ONLY_SHORTCUT']
+            settings.DEFINE_ONLY_SHORTCUT = shortcuts['2 DEFINE_ONLY_SHORTCUT']
         if '3 PRONOUNCE_ONLY_SHORTCUT' in shortcuts:
-            PRONOUNCE_ONLY_SHORTCUT = shortcuts['3 PRONOUNCE_ONLY_SHORTCUT']
+            settings.PRONOUNCE_ONLY_SHORTCUT = shortcuts['3 PRONOUNCE_ONLY_SHORTCUT']
         if '4 PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT' in shortcuts:
-            PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT = shortcuts['4 PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT']
-'''
+            settings.PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT = shortcuts['4 PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT']

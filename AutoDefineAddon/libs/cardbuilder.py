@@ -24,29 +24,26 @@ from urllib.error import URLError
 from xml.etree import ElementTree as ET
 import json
 
-import sys
-sys.path.append("/home/artem/workspace/AutoDefine/AutoDefineAddon/libs")
-
-import webbrowser
-import config
+from . import settings
+from . import webbrowser
 
 def _abbreviate_part_of_speech(part_of_speech):
-    if part_of_speech in config.PART_OF_SPEECH_ABBREVIATION.keys():
-        part_of_speech = config.PART_OF_SPEECH_ABBREVIATION[part_of_speech]
+    if part_of_speech in settings.PART_OF_SPEECH_ABBREVIATION.keys():
+        part_of_speech = settings.PART_OF_SPEECH_ABBREVIATION[part_of_speech]
 
     return part_of_speech
 
 
 def get_preferred_valid_entries(word):
     collegiate_url = "http://www.dictionaryapi.com/api/v1/references/collegiate/xml/" + \
-                     urllib.parse.quote_plus(word) + "?key=" + config.MERRIAM_WEBSTER_API_KEY
+                     urllib.parse.quote_plus(word) + "?key=" + settings.MERRIAM_WEBSTER_API_KEY
     medical_url = "https://www.dictionaryapi.com/api/references/medical/v2/xml/" + \
-                  urllib.parse.quote_plus(word) + "?key=" + config.MERRIAM_WEBSTER_MEDICAL_API_KEY
+                  urllib.parse.quote_plus(word) + "?key=" + settings.MERRIAM_WEBSTER_MEDICAL_API_KEY
     all_collegiate_entries = get_entries_from_api(word, collegiate_url)
     all_medical_entries = get_entries_from_api(word, medical_url)
 
     potential_unified = set()
-    if config.PREFERRED_DICTIONARY == "COLLEGIATE":
+    if settings.PREFERRED_DICTIONARY == "COLLEGIATE":
         entries = filter_entries_lower_and_potential(word, all_collegiate_entries)
         potential_unified |= entries.potential
         if not entries.valid:
@@ -152,13 +149,13 @@ class CardBuilder:
         self._card.fields[0] = word
 
     def addDefinition(self):
-        self._card.fields[config.DEFINITION_FIELD] = ""
+        self._card.fields[settings.DEFINITION_FIELD] = ""
 
     def addTranscription(self):
-        self._card.fields[config.PHONETIC_TRANSCRIPTION_FIELD] = ""
+        self._card.fields[settings.PHONETIC_TRANSCRIPTION_FIELD] = ""
 
     def addPronunciation(self):
-        self._card.fields[config.PRONUNCIATION_FIELD] = ""
+        self._card.fields[settings.PRONUNCIATION_FIELD] = ""
 
     def getCard(self) -> Card:
         return self._card
@@ -248,7 +245,7 @@ class CollegiateCardBuilder(CardBuilder):
             # final cleanup of <sx> tag bs
             to_return = to_return.replace(".</b> ; ", ".</b> ")  # <sx> as first definition after "n. " or "v. "
             to_return = to_return.replace("\n; ", "\n")  # <sx> as first definition after newline
-            self._card.fields[config.DEFINITION_FIELD] = to_return
+            self._card.fields[settings.DEFINITION_FIELD] = to_return
 
     def addTranscription(self):
         valid_entries = self._card.entries
@@ -266,7 +263,7 @@ class CollegiateCardBuilder(CardBuilder):
 
         to_print = "<br>".join(all_transcriptions)
 
-        self._card.fields[config.PHONETIC_TRANSCRIPTION_FIELD] = to_print
+        self._card.fields[settings.PHONETIC_TRANSCRIPTION_FIELD] = to_print
 
     def addPronunciation(self):
         valid_entries = self._card.entries
@@ -289,7 +286,7 @@ class CollegiateCardBuilder(CardBuilder):
 
         # We want to make this a non-duplicate list, so that we only get unique sound files.
         all_sounds = list(dict.fromkeys(all_sounds))
-        final_pronounce_index = config.PRONUNCIATION_FIELD
+        final_pronounce_index = settings.PRONUNCIATION_FIELD
         if mw and False:
             fields = mw.col.models.fieldNames(editor.note.model())
             for field in fields:
@@ -299,12 +296,12 @@ class CollegiateCardBuilder(CardBuilder):
 
         to_print = ''.join(all_sounds)
 
-        self._card.fields[config.PRONUNCIATION_FIELD] = to_print
+        self._card.fields[settings.PRONUNCIATION_FIELD] = to_print
 
 class SpanishCardBuilder(CardBuilder):
     def __init__(self, word):
         super().__init__(word)
-        url = "https://dictionaryapi.com/api/v3/references/spanish/json/" + word + "?key=" + config.MERRIAM_WEBSTER_SPANISH_API_KEY
+        url = "https://dictionaryapi.com/api/v3/references/spanish/json/" + word + "?key=" + settings.MERRIAM_WEBSTER_SPANISH_API_KEY
         entries = get_entries_from_api(word, url)
         if entries:
             self._card.entries = entries[0]
@@ -330,7 +327,7 @@ class SpanishCardBuilder(CardBuilder):
             text = ""
             for definition in definitions:
                 text += definition + '\n<br>'
-            self._card.fields[config.DEFINITION_FIELD] = text
+            self._card.fields[settings.DEFINITION_FIELD] = text
 
 
     def addPronunciation(self):
@@ -339,4 +336,4 @@ class SpanishCardBuilder(CardBuilder):
             pronunciations = []
             audio = entries["hwi"]["prs"][0]["sound"]["audio"]
             if audio:
-                self._card.fields[config.PRONUNCIATION_FIELD] = "https://media.merriam-webster.com/audio/prons/es/me/wav/" + audio[0] + "/" + audio + ".wav"
+                self._card.fields[settings.PRONUNCIATION_FIELD] = "https://media.merriam-webster.com/audio/prons/es/me/wav/" + audio[0] + "/" + audio + ".wav"
