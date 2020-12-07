@@ -15,17 +15,19 @@ import traceback
 import urllib.error
 import urllib.parse
 import urllib.request
-from anki import version
-from anki.hooks import addHook
 from aqt import mw
-from aqt.utils import showInfo, tooltip
 from http.client import RemoteDisconnected
 from urllib.error import URLError
 from xml.etree import ElementTree as ET
 import json
 
-from . import settings
-from . import webbrowser
+import sys
+
+myPath = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, myPath)
+
+import settings
+import webbrowser
 
 def _abbreviate_part_of_speech(part_of_speech):
     if part_of_speech in settings.PART_OF_SPEECH_ABBREVIATION.keys():
@@ -301,39 +303,65 @@ class CollegiateCardBuilder(CardBuilder):
 class SpanishCardBuilder(CardBuilder):
     def __init__(self, word):
         super().__init__(word)
-        url = "https://dictionaryapi.com/api/v3/references/spanish/json/" + word + "?key=" + settings.MERRIAM_WEBSTER_SPANISH_API_KEY
+        url = "https://dictionaryapi.com/api/v3/references/spanish/json/" + word + "?key=" + settings.MERRIAM_WEBSTER_API_KEY
         entries = get_entries_from_api(word, url)
         if entries:
-            self._card.entries = entries[0]
+            self._card.entries = entries
         else:
             self._card.entries = []
 
     def addDefinition(self):
         entries = self._card.entries
         if entries:
-            definitions = []
-            sseq_list = entries["def"][0]["sseq"]
-            for sseq in sseq_list:
-                dt = sseq[0][1]["dt"]
-                for elem in dt:
-                    if elem[0] == "text":
-                        definition = elem[1].replace("{bc}", "")     \
-                                            .replace("{a_link|", "") \
-                                            .replace("}", "")        \
-                                            .replace("{sx|", "")     \
-                                            .replace("|", "")     \
-                                            .strip()
-                        definitions.append(definition)
             text = ""
-            for definition in definitions:
-                text += definition + '\n<br>'
+            for entry in entries:
+                word_id = entry["meta"]["id"]
+                # word_id must contain word we are looking
+                # otherwise this is a definition for another word
+                word = self._card.fields[0]
+                if word_id.find(word) == -1:
+                    continue
+                fl = entry["fl"]
+                if fl:
+                    fl = _abbreviate_part_of_speech(fl)
+                    text += "<b>" + fl + "</b>\n<br>"
+
+                definitions = []
+                sseq_list = entry["def"][0]["sseq"]
+                if sseq_list:
+                    for sseq in sseq_list:
+                        dt = sseq[0][1]["dt"]
+                        for elem in dt:
+                            if elem[0] == "text":
+                                definition = elem[1]
+                                if definition.find("sx") != -1:
+                                    definition = definition.replace("{sx|", "syn:") \
+                                                           .replace("}", ",", 1)
+
+                                definition = definition.replace("{bc}", "")     \
+                                                       .replace("{a_link|", "") \
+                                                       .replace("}", "")        \
+                                                       .replace("{sx|", "")     \
+                                                       .replace("|", "")        \
+                                                       .strip()
+                                definitions.append(definition)
+                    for definition in definitions:
+                        text += definition + '\n<br>'
+
             self._card.fields[settings.DEFINITION_FIELD] = text
 
 
     def addPronunciation(self):
-        entries = self._card.entries
-        if entries:
-            pronunciations = []
-            audio = entries["hwi"]["prs"][0]["sound"]["audio"]
-            if audio:
-                self._card.fields[settings.PRONUNCIATION_FIELD] = "https://media.merriam-webster.com/audio/prons/es/me/wav/" + audio[0] + "/" + audio + ".wav"
+        # assumption is that it is enough to have
+        # pronunciation from the first entry with pronunciation available
+        isFound = False
+        for entry in self._card.entries:
+            if "hwi" in entry and "prs" in entry["hwi"]:
+                prs = entry["hwi"]["prs"][0]
+                if "sound" in prs:
+                    audio = prs["sound"]["audio"]
+                    self._card.fields[settings.PRONUNCIATION_FIELD] = "https://media.merriam-webster.com/audio/prons/es/me/wav/" + audio[0] + "/" + audio + ".wav"
+                    isFound = True
+                    break
+        if not isFound:
+            self._card.fields[settings.PRONUNCIATION_FIELD] = "not available :("

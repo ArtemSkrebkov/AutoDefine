@@ -1,7 +1,6 @@
 # Get your unique API key by signing up at http://www.dictionaryapi.com/
 MERRIAM_WEBSTER_API_KEY = "YOUR_KEY_HERE"
 
-MERRIAM_WEBSTER_SPANISH_API_KEY = "YOUR_KEY_HERE"
 # Index of field to insert definitions into (use -1 to turn off)
 DEFINITION_FIELD = 1
 
@@ -35,3 +34,6 @@ PRONOUNCE_ONLY_SHORTCUT = ""
 PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT = ""
 
 PART_OF_SPEECH_ABBREVIATION = {"verb": "v.", "noun": "n.", "adverb": "adv.", "adjective": "adj."}
+
+# supposed to be set in tests only
+TEST_MODE = False

@@ -23,12 +23,13 @@ from http.client import RemoteDisconnected
 from urllib.error import URLError
 from xml.etree import ElementTree as ET
 
-from .libs import settings
-from .libs import webbrowser
-from .libs import cardbuilder
-# --------------------------------- SETTINGS ---------------------------------
-
-
+import sys
+import os
+myPath = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, myPath + '/libs')
+import settings
+import webbrowser
+import cardbuilder
 
 # Collegiate Dictionary API XML documentation: http://goo.gl/LuD83A
 # Medical Dictionary API XML documentation: https://goo.gl/akvkbB
@@ -149,10 +150,8 @@ def _get_definition(editor,
         cardBuilder.addPronunciation()
 
     # Add Phonetic Transcription
-    if (not force_definition and not force_pronounce and settings.PHONETIC_TRANSCRIPTION_FIELD > -1) or \
-            force_phonetic_transcription:
+    if (not force_definition and not force_pronounce and settings.PHONETIC_TRANSCRIPTION_FIELD > -1) or force_phonetic_transcription:
         cardBuilder.addTranscription()
-
 
     # Add Definition
     if (not force_pronounce and not force_phonetic_transcription and settings.DEFINITION_FIELD > -1) or force_definition:
@@ -218,41 +217,42 @@ def setup_buttons(buttons, editor):
         buttons.append(phonetic_transcription_button)
     return buttons
 
-addHook("setupEditorButtons", setup_buttons)
-if getattr(mw.addonManager, "getConfig", None):
-    config = mw.addonManager.getConfig(__name__)
-    if '1 required' in config and 'MERRIAM_WEBSTER_API_KEY' in config['1 required']:
-        settings.MERRIAM_WEBSTER_API_KEY = config['1 required']['MERRIAM_WEBSTER_API_KEY']
-    else:
-        showInfo("AutoDefine: The schema of the configuration has changed in a backwards-incompatible way.\n"
-                 "Please remove and re-download the AutoDefine Add-on.")
+if not settings.TEST_MODE:
+    addHook("setupEditorButtons", setup_buttons)
+    if getattr(mw.addonManager, "getConfig", None):
+        config = mw.addonManager.getConfig(__name__)
+        if '1 required' in config and 'MERRIAM_WEBSTER_API_KEY' in config['1 required']:
+            settings.MERRIAM_WEBSTER_API_KEY = config['1 required']['MERRIAM_WEBSTER_API_KEY']
+        else:
+            showInfo("AutoDefine: The schema of the configuration has changed in a backwards-incompatible way.\n"
+                    "Please remove and re-download the AutoDefine Add-on.")
 
-    if '2 extra' in config:
-        extra = config['2 extra']
-        if 'DEDICATED_INDIVIDUAL_BUTTONS' in extra:
-            settings.DEDICATED_INDIVIDUAL_BUTTONS = extra['DEDICATED_INDIVIDUAL_BUTTONS']
-        if 'DEFINITION_FIELD' in extra:
-            settings.DEFINITION_FIELD = extra['DEFINITION_FIELD']
-        if 'IGNORE_ARCHAIC' in extra:
-            settings.IGNORE_ARCHAIC = extra['IGNORE_ARCHAIC']
-        if 'MERRIAM_WEBSTER_MEDICAL_API_KEY' in extra:
-            settings.MERRIAM_WEBSTER_MEDICAL_API_KEY = extra['MERRIAM_WEBSTER_MEDICAL_API_KEY']
-        if 'OPEN_IMAGES_IN_BROWSER' in extra:
-            settings.OPEN_IMAGES_IN_BROWSER = extra['OPEN_IMAGES_IN_BROWSER']
-        if 'PREFERRED_DICTIONARY' in extra:
-            settings.PREFERRED_DICTIONARY = extra['PREFERRED_DICTIONARY']
-        if 'PRONUNCIATION_FIELD' in extra:
-            settings.PRONUNCIATION_FIELD = extra['PRONUNCIATION_FIELD']
-        if 'PHONETIC_TRANSCRIPTION_FIELD' in extra:
-            settings.PHONETIC_TRANSCRIPTION_FIELD = extra['PHONETIC_TRANSCRIPTION_FIELD']
+        if '2 extra' in config:
+            extra = config['2 extra']
+            if 'DEDICATED_INDIVIDUAL_BUTTONS' in extra:
+                settings.DEDICATED_INDIVIDUAL_BUTTONS = extra['DEDICATED_INDIVIDUAL_BUTTONS']
+            if 'DEFINITION_FIELD' in extra:
+                settings.DEFINITION_FIELD = extra['DEFINITION_FIELD']
+            if 'IGNORE_ARCHAIC' in extra:
+                settings.IGNORE_ARCHAIC = extra['IGNORE_ARCHAIC']
+            if 'MERRIAM_WEBSTER_MEDICAL_API_KEY' in extra:
+                settings.MERRIAM_WEBSTER_MEDICAL_API_KEY = extra['MERRIAM_WEBSTER_MEDICAL_API_KEY']
+            if 'OPEN_IMAGES_IN_BROWSER' in extra:
+                settings.OPEN_IMAGES_IN_BROWSER = extra['OPEN_IMAGES_IN_BROWSER']
+            if 'PREFERRED_DICTIONARY' in extra:
+                settings.PREFERRED_DICTIONARY = extra['PREFERRED_DICTIONARY']
+            if 'PRONUNCIATION_FIELD' in extra:
+                settings.PRONUNCIATION_FIELD = extra['PRONUNCIATION_FIELD']
+            if 'PHONETIC_TRANSCRIPTION_FIELD' in extra:
+                settings.PHONETIC_TRANSCRIPTION_FIELD = extra['PHONETIC_TRANSCRIPTION_FIELD']
 
-    if '3 shortcuts' in config:
-        shortcuts = config['3 shortcuts']
-        if '1 PRIMARY_SHORTCUT' in shortcuts:
-            settings.PRIMARY_SHORTCUT = shortcuts['1 PRIMARY_SHORTCUT']
-        if '2 DEFINE_ONLY_SHORTCUT' in shortcuts:
-            settings.DEFINE_ONLY_SHORTCUT = shortcuts['2 DEFINE_ONLY_SHORTCUT']
-        if '3 PRONOUNCE_ONLY_SHORTCUT' in shortcuts:
-            settings.PRONOUNCE_ONLY_SHORTCUT = shortcuts['3 PRONOUNCE_ONLY_SHORTCUT']
-        if '4 PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT' in shortcuts:
-            settings.PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT = shortcuts['4 PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT']
+        if '3 shortcuts' in config:
+            shortcuts = config['3 shortcuts']
+            if '1 PRIMARY_SHORTCUT' in shortcuts:
+                settings.PRIMARY_SHORTCUT = shortcuts['1 PRIMARY_SHORTCUT']
+            if '2 DEFINE_ONLY_SHORTCUT' in shortcuts:
+                settings.DEFINE_ONLY_SHORTCUT = shortcuts['2 DEFINE_ONLY_SHORTCUT']
+            if '3 PRONOUNCE_ONLY_SHORTCUT' in shortcuts:
+                settings.PRONOUNCE_ONLY_SHORTCUT = shortcuts['3 PRONOUNCE_ONLY_SHORTCUT']
+            if '4 PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT' in shortcuts:
+                settings.PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT = shortcuts['4 PHONETIC_TRANSCRIPTION_ONLY_SHORTCUT']
